@@ -20,12 +20,6 @@ def login():
     account_id = input("Please enter your id: ")
     password = input("Please enter your password: ")
 
-    detect_user_query = """
-                        """
-
-    detect_artist_query = """
-                        """
-
 def main():
     global connection, cur
 
