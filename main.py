@@ -22,7 +22,7 @@ def login():
 
 def main():
     global connection, cur
-
+    #momo :()
     # retrieve database from command line
     db = sys.argv[1]
 
