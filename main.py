@@ -216,9 +216,8 @@ def login():
 
 def main():
     global connection, cur
-
     connection.create_function("sim_words", 2, similar_words)
-
+    #momo :()
     # retrieve database from command line
     db = sys.argv[1]
 
