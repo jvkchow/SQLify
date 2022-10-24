@@ -78,7 +78,77 @@ def print_sp_page(pages, page_no):
         print("Type: " + result[1] + ", Title: " + result[3] + ", Duration: " + result[3] + ", ID: " + result[0])
     print("===================================")
 
-def search_sp():
+def select_song(song):
+    # actions that occur when you select a song
+    print("===================================")
+    print("SELECTED SONG: " + song[2])
+    print("===================================")
+
+def select_playlist(playlist):
+    # actions that occur when you select a playlist
+    print("===================================")
+    print("SELECTED PLAYLIST: " + playlist[2])
+    print("===================================")
+
+def select_artist(artist):
+    # actions that occur when you select a playlist
+    print("===================================")
+    print("SELECTED PLAYLIST: " + artist[2])
+    print("===================================")
+
+def format_page(results):
+    # puts results into pages    # put results into pages
+    pages = []
+    counter = 0
+    if (len(results) <= 0):
+        print("\nThere are no results that match your search.")
+        return pages
+
+    while (counter != len(results)-1):
+        if len(results) - counter >= 5:
+            while(counter % 5 != 0):
+                page = []
+                page.append(results[counter])
+                counter += 1
+            pages.append(page)
+        else:
+            while (counter != len(results)-1):
+                page = []
+                page.append(results[counter])
+                counter += 1
+            pages.append(page)
+    return pages
+
+def display_pages(pages):
+    # print first results
+    current_page = 0
+    print_sp_page(pages, current_page)
+
+    # print next pages
+    next = 'n'
+    while next == 'n':
+        next = input("If you would like to see the next page, enter 'y'. If not, enter 'n': ")
+        if next == 'y':
+            current_page += 1
+            print_sp_page(pages, current_page)
+
+    user_choice = input("If you would like to select a result, enter with the format [Page Number].[Result Number]. If not, enter 'n': ")
+
+    if user_choice == 'n':
+        return
+    else:
+        choice = user_choice.split(".")
+        selected_page = pages[choice[0]]
+        selected_result = selected_page[choice[1]]
+
+        if selected_result[1] == "Song":
+            select_song(selected_result)
+        elif selected_result[1] == "Playlist":
+            select_playlist(selected_result)
+        elif selected_result[1] == "Artist":
+            select_artist(selected_result)
+
+def search_sp(uid):
     # allows the user to search for a song or playlist
     global connection, cur
     connection.row_factory = sqlite3.Row
@@ -91,7 +161,7 @@ def search_sp():
     get_ps = """
                 WITH ps_results(id, type, title, duration, sim_count) as (
                 SELECT sid, 'Song' as type, s.title, duration, sim_words(title, :usearch) as sim_count
-                FROM songs
+                FROM songs s
                 WHERE sim_count > 0
                 UNION
                 SELECT p.pid, 'Playlist' as type, p.title, sum(s.duration), sim_words(p.title, :usearch) as sim_count
@@ -108,59 +178,53 @@ def search_sp():
 
     cur.execute(get_ps, {"usearch": keywords})
     ps_results = cur.fetchall()
+    ps_pages = format_page(ps_results)
 
-    # put results into pages
-    ps_pages = []
-    counter = 0
-    while (counter != len(ps_results)-1):
-        if len(ps_results - counter >= 5):
-            while(counter % 5 != 0):
-                page = []
-                page.append(ps_results[counter])
-                counter += 1
-            ps_pages.append(page)
-        else:
-            while (counter != len(ps_results)-1):
-                page = []
-                page.append(ps_results[counter])
-                counter += 1
-            ps_pages.append(page)
+    if len(ps_pages == 0):
+        home(uid)
 
-    # print first results
-    current_page = 0
-    print_sp_page(ps_pages, current_page)
-
-    # print next pages
-    next = 'n'
-    while next == 'n':
-        next = input("If you would like to see the next page, enter 'y'. If not, enter 'n': ")
-        if next == 'y':
-            current_page += 1
-            print_sp_page(ps_pages, current_page)
-
-    user_choice = input("If you would like to select a result, enter with the format [Page Number].[Result Number]. If not, enter 'n': ")
-
-    if user_choice == 'n':
-        home()
-    else:
-        choice = user_choice.split(".")
-        selected_page = ps_pages[]
+    display_pages(ps_pages)
+    home(uid)
 
 
-def search_artist():
+def search_artist(uid):
     # allows the user to search for an artist
     global connection, cur
     print("===================================")
     print("Searching for artists")
     print("===================================")
 
-    keyword = input("Please enter your search: ")
+    keywords = input("Please enter your search: ")
 
-    for word in keyword:
-        find_artist = """
-                      SELECT * FROM artists
-                      """
-        
+    get_as = """
+                WITH as_results(aid, type, name, nationality, song_count, sim_count) as (
+                SELECT a.aid, 'Artist' as type, a.name, a.nationality, COUNT(p.sid) as song_count, sim_words(a.name, :usearch) as sim_count
+                FROM artists a, perform p
+                WHERE a.aid = p.aid
+                and sim_count > 0
+                GROUP BY a.aid, a.name, a.nationality
+                UNION
+                SELECT a.aid, 'Artist' as type, a.name, a.nationality, COUNT(p.sid) as song_count, sim_words(s.title, :usearch) as sim_count
+                FROM songs s, perform p, artists a
+                WHERE sim_count > 0
+                and s.sid = p.sid
+                and p.aid = a.aid
+                GROUP BY a.aid, a.name, a.nationality
+                )
+                SELECT * 
+                FROM as_results
+                ORDER BY sim_count DESC
+            """
+
+    cur.execute(get_as, {"usearch": keywords})
+    as_results = cur.fetchall()
+    as_pages = format_page(as_results)
+
+    if len(as_pages == 0):
+        home(uid)
+
+    display_pages(as_pages)
+    home(uid)
 
 def end_session(uid):
     # allows the user to end their session
@@ -197,16 +261,16 @@ def home(uid):
     if user_choice == "1":
         start_session(uid)
     elif user_choice == "2":
-        search_sp()
+        search_sp(uid)
     elif user_choice == "3":
-        search_artist()
+        search_artist(uid)
     elif user_choice == "4":
         end_session(uid)
     elif user_choice == "5":
-        login()
+        login(uid)
     else:
         print("Invalid input.")
-        home()
+        home(uid)
 
 def login():
     # login screen to retrieve account and detect if account is user, artist, or both
@@ -216,17 +280,17 @@ def login():
 
 def main():
     global connection, cur
-    connection.create_function("sim_words", 2, similar_words)
     # retrieve database from command line
     db = sys.argv[1]
 
     # retrieve path to connect to
     path = "./{database}".format(database=db)
     connect(path) 
+    connection.create_function("sim_words", 2, similar_words)
 
     # main program
-    login()
-    home()
+    uid = login()
+    home(uid)
     
     # close connection and finish program
     connection.commit()
