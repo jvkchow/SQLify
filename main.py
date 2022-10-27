@@ -279,34 +279,71 @@ def home(uid):
 
 def login():
     # login screen to retrieve account and detect if account is user, artist, or both
-
-    account_id = input("Please enter your id: ")
-    password = input("Please enter your password: ")
-
-    # checking if account is artist
-    cur.execute("Select aid From artists;")
-    artists = cur.fetchall()
-    artist = False
-    if account_id in artists:
-        artist = True
-    # checking if account is user 
     cur.execute("Select uid from users;")
     users = cur.fetchall()
-    user = False
-    if account_id in users and account_id not in artists:
-        user = True
-        return account_id
-    
-    if user and artist:
-        prompt = input("Do you want to login as an artist or a user? Please enter a or u: ")
-    
-    if account_id not in users:
-        new_uid = input("Please enter a new unique uid: ")
-        while new_uid not in users:
-            new_uid = input("Please enter a new unique uid: ")
-        # password
-        # name
-    return new_uid
+
+    cur.execute("Select aid From artists;")
+    artists = cur.fetchall()
+
+    answer = input("Do you want to make a new account (n) or login (l)? Enter n or l:")
+    while answer.lower() != "n" and answer.lower() != "l":
+        answer = input("Do you want to make a new account (n) or login (l)? Enter n or l:")
+
+    # adding new user
+    if answer.lower() == 'n':
+        new_uid = input("\nPlease enter a unique id: ")
+        while new_uid in users:
+            new_uid = input("\nThis id is already being used, please enter a unique id: ")
+        name = input("\nPlease enter your name: ")
+        password = input("\nPlease enter a new password: ")
+
+        cur.execute("INSERT INTO users VALUES (:uid, :name, :pwd)", {"uid": new_uid, "name": name, "pwd": password})
+
+    # logging in
+    if answer.lower() == 'l':
+        id = input("\nPlease enter your id: ")
+
+        if id in users and id not in artists:
+            password = input("\nPlease enter your password: ")
+            cur.execute("Select pwd from users where uid = :id;", {"id": id})
+            pwd = cur.fetchone()
+            while password != pwd:
+                password = input("\nIncorrect password. Please try again.")
+            
+        elif id in artists and id not in users:
+            password = input("\nPlease enter your password: ")
+            cur.execute("Select pwd from artists where aid = :id;", {"id": id})
+            pwd = cur.fetchone()
+            while password != pwd:
+                password = input("\nIncorrect password. Please try again.")
+            
+        elif id in artists and id in users:
+            log_choice = input("\nDo you want to login as a user or an artist? Please enter u or a: ")
+            while log_choice.lower() not in ['u', 'a']:
+                log_choice = input("\nDo you want to login as a user or an artist? Please enter u or a: ")
+            if log_choice.lower() == 'u':
+                password = input("\nPlease enter your password: ")
+                cur.execute("Select pwd from users where uid = :id;", {"id": id})
+                pwd = cur.fetchone()
+                while password != pwd:
+                    password = input("\nIncorrect password. Please try again.")
+            elif log_choice.lower() == 'a':
+                password = input("\nPlease enter your password: ")
+                cur.execute("Select pwd from artists where aid = :id;", {"id": id})
+                pwd = cur.fetchone()
+                while password != pwd:
+                    password = input("\nIncorrect password. Please try again.")
+                    
+        elif id not in artists and id not in users: 
+            print("\nYou have to make a new user account")
+            new_uid = input("\nPlease enter a unique id: ")
+            while new_uid in users:
+                new_uid = input("\nThis id is already being used, please enter a unique id: ")
+            name = input("\nPlease enter your name: ")
+            password = input("\nPlease enter a new password: ")
+            cur.execute("INSERT INTO users VALUES (:uid, :name, :pwd)", {"uid": new_uid, "name": name, "pwd": password})
+        
+        return id
 
 def main():
     global connection, cur
@@ -320,9 +357,8 @@ def main():
     connection.create_function("sim_words", 2, similar_words)
 
     # main program
-    #uid = login()
-    #home(uid)
-    home("u04")
+    uid = login()
+    home(uid)
 
     # close connection and finish program
     connection.commit()
