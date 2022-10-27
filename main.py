@@ -2,7 +2,6 @@ from asyncio.windows_events import NULL
 import sys
 import sqlite3
 import time
-import random
 
 connection = None
 cur = None
@@ -22,24 +21,23 @@ def start_session(uid):
 
     global connection, cur
 
-    current_date = time.strftime("%Y-%m-%d %H:%M:%S")
+    current_date = time.strftime("%Y-%m-%d")
 
     # check if this session is the first one added
-    cur.execute("SELECT COUNT(*) FROM sessions")
+    cur.execute("SELECT COUNT(*) FROM sessions;")
     ses_count = cur.fetchone()
-
-    if ses_count == 0:
+    if ses_count[0] == 0:
         sno = 1
     else:
         # get unique sno by adding 1 to the last sno added
-        cur.execute("SELECT sno FROM sessions")
+        cur.execute("SELECT sno FROM sessions;")
         snos = cur.fetchall()
         largest_sno = snos[len(snos)-1][0]
         sno = largest_sno + 1
 
     new_session = """
                     INSERT INTO sessions(uid, sno, start, end)
-                    VALUES (:userid, :sesno, :stime, NULL)
+                    VALUES (:userid, :sesno, :stime, NULL);
                   """
 
     cur.execute(new_session, {"userid": uid, "sesno": sno, "stime": current_date})
@@ -47,6 +45,8 @@ def start_session(uid):
     print("===================================")
     print("SESSION {sessionno} STARTED".format(sessionno=sno))
     print("===================================")
+
+    home(uid)
 
     connection.commit()
 
@@ -64,18 +64,19 @@ def similar_words(dbword, usearch):
 
     return count
 
-def print_sp_page(pages, page_no):
+def print_page(pages, page_no):
     page = pages[page_no]
 
     print("===================================")
     print("-----------------------------------")
-    print("Page Number: " + page_no)
+    print("Page Number: " + str(page_no))
     print("-----------------------------------")
 
     counter = 0
     for result in page:
-        print("Result Number: " + page_no + "." + counter)
-        print("Type: " + result[1] + ", Title: " + result[3] + ", Duration: " + result[3] + ", ID: " + result[0])
+        print("Result Number: " + str(page_no) + "." + str(counter))
+        print("Type: " + result[1] + ", Title: " + result[2] + ", Duration: " + str(result[3]) + ", ID: " + str(result[0]))
+        counter += 1
     print("===================================")
 
 def select_song(song):
@@ -97,23 +98,25 @@ def select_artist(artist):
     print("===================================")
 
 def format_page(results):
-    # puts results into pages    # put results into pages
+    # puts results into pages
     pages = []
     counter = 0
-    if (len(results) <= 0):
+    if len(results) <= 0:
         print("\nThere are no results that match your search.")
         return pages
 
-    while (counter != len(results)-1):
+    while counter != len(results):
         if len(results) - counter >= 5:
-            while(counter % 5 != 0):
-                page = []
+            page = []
+            page_count = 0
+            while page_count != 5:
                 page.append(results[counter])
                 counter += 1
+                page_count += 1
             pages.append(page)
         else:
-            while (counter != len(results)-1):
-                page = []
+            page = []
+            while counter != len(results):
                 page.append(results[counter])
                 counter += 1
             pages.append(page)
@@ -122,15 +125,19 @@ def format_page(results):
 def display_pages(pages):
     # print first results
     current_page = 0
-    print_sp_page(pages, current_page)
-
+    print_page(pages, current_page)
+    
     # print next pages
-    next = 'n'
-    while next == 'n':
+    while current_page != len(pages) - 1:
         next = input("If you would like to see the next page, enter 'y'. If not, enter 'n': ")
         if next == 'y':
             current_page += 1
-            print_sp_page(pages, current_page)
+            print_page(pages, current_page)
+        elif next == 'n':
+            break
+        else:
+            print("Invalid Input. Page searching terminated.")
+            break
 
     user_choice = input("If you would like to select a result, enter with the format [Page Number].[Result Number]. If not, enter 'n': ")
 
@@ -138,8 +145,8 @@ def display_pages(pages):
         return
     else:
         choice = user_choice.split(".")
-        selected_page = pages[choice[0]]
-        selected_result = selected_page[choice[1]]
+        selected_page = pages[int(choice[0])]
+        selected_result = selected_page[int(choice[1])]
 
         if selected_result[1] == "Song":
             select_song(selected_result)
@@ -160,11 +167,11 @@ def search_sp(uid):
 
     get_ps = """
                 WITH ps_results(id, type, title, duration, sim_count) as (
-                SELECT sid, 'Song' as type, s.title, duration, sim_words(title, :usearch) as sim_count
+                SELECT sid, 'Song' as type, s.title, duration, sim_words(UPPER(title), UPPER(:usearch)) as sim_count
                 FROM songs s
                 WHERE sim_count > 0
                 UNION
-                SELECT p.pid, 'Playlist' as type, p.title, sum(s.duration), sim_words(p.title, :usearch) as sim_count
+                SELECT p.pid, 'Playlist' as type, p.title, sum(s.duration), sim_words(UPPER(p.title), UPPER(:usearch)) as sim_count
                 FROM playlists p, songs s, plinclude pi
                 WHERE sim_count > 0
                 and p.pid = pi.pid
@@ -173,17 +180,15 @@ def search_sp(uid):
                 )
                 SELECT * 
                 FROM ps_results
-                ORDER BY sim_count DESC
+                ORDER BY sim_count DESC;
                 """
 
     cur.execute(get_ps, {"usearch": keywords})
     ps_results = cur.fetchall()
     ps_pages = format_page(ps_results)
-
-    if len(ps_pages == 0):
-        home(uid)
-
+    print(ps_pages)
     display_pages(ps_pages)
+
     home(uid)
 
 
@@ -198,13 +203,13 @@ def search_artist(uid):
 
     get_as = """
                 WITH as_results(aid, type, name, nationality, song_count, sim_count) as (
-                SELECT a.aid, 'Artist' as type, a.name, a.nationality, COUNT(p.sid) as song_count, sim_words(a.name, :usearch) as sim_count
+                SELECT a.aid, 'Artist' as type, a.name, a.nationality, COUNT(p.sid) as song_count, sim_words(UPPER(a.name), UPPER(:usearch)) as sim_count
                 FROM artists a, perform p
                 WHERE a.aid = p.aid
                 and sim_count > 0
                 GROUP BY a.aid, a.name, a.nationality
                 UNION
-                SELECT a.aid, 'Artist' as type, a.name, a.nationality, COUNT(p.sid) as song_count, sim_words(s.title, :usearch) as sim_count
+                SELECT a.aid, 'Artist' as type, a.name, a.nationality, COUNT(p.sid) as song_count, sim_words(UPPER(s.title), UPPER(:usearch)) as sim_count
                 FROM songs s, perform p, artists a
                 WHERE sim_count > 0
                 and s.sid = p.sid
@@ -213,14 +218,14 @@ def search_artist(uid):
                 )
                 SELECT * 
                 FROM as_results
-                ORDER BY sim_count DESC
+                ORDER BY sim_count DESC;
             """
 
     cur.execute(get_as, {"usearch": keywords})
     as_results = cur.fetchall()
     as_pages = format_page(as_results)
 
-    if len(as_pages == 0):
+    if len(as_pages) == 0:
         home(uid)
 
     display_pages(as_pages)
@@ -230,7 +235,7 @@ def end_session(uid):
     # allows the user to end their session
     global connection, cur
 
-    current_date = time.strftime("%Y-%m-%d %H:%M:%S")
+    current_date = time.strftime("%Y-%m-%d")
 
     print("===================================")
     print("SESSION ENDED")
@@ -240,7 +245,7 @@ def end_session(uid):
                     UPDATE sessions
                     SET end = :curtime
                     WHERE uid = :userid
-                    and end = NULL
+                    and end IS NULL;
                    """
     cur.execute(update_session, {"userid": uid, "curtime": current_date})
     connection.commit()
@@ -302,14 +307,10 @@ def login():
         # password
         # name
     return new_uid
-        
-
-
 
 def main():
     global connection, cur
 
-    
     # retrieve database from command line
     db = sys.argv[1]
 
@@ -319,9 +320,10 @@ def main():
     connection.create_function("sim_words", 2, similar_words)
 
     # main program
-    uid = login()
-    home(uid)
-    
+    #uid = login()
+    #home(uid)
+    home("u04")
+
     # close connection and finish program
     connection.commit()
     connection.close()
