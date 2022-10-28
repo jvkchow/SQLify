@@ -1,4 +1,5 @@
 from asyncio.windows_events import NULL
+from re import S
 import sys
 import sqlite3
 import time
@@ -75,7 +76,10 @@ def print_page(pages, page_no):
     counter = 0
     for result in page:
         print("Result Number: " + str(page_no) + "." + str(counter))
-        print("Type: " + result[1] + ", Title: " + result[2] + ", Duration: " + str(result[3]) + ", ID: " + str(result[0]))
+        if result[1] == "Artist":
+            print("Type: " + result[1] + ", Name: " + result[2] + ", Nationality: " + str(result[3]).upper() + ", ID: " + str(result[0]))
+        else:
+            print("Type: " + result[1] + ", Title: " + result[2] + ", Duration: " + str(result[3]) + ", ID: " + str(result[0]))
         counter += 1
     print("===================================")
 
@@ -83,18 +87,6 @@ def select_song(song):
     # actions that occur when you select a song
     print("===================================")
     print("SELECTED SONG: " + song[2])
-    print("===================================")
-
-def select_playlist(playlist):
-    # actions that occur when you select a playlist
-    print("===================================")
-    print("SELECTED PLAYLIST: " + playlist[2])
-    print("===================================")
-
-def select_artist(artist):
-    # actions that occur when you select a playlist
-    print("===================================")
-    print("SELECTED PLAYLIST: " + artist[2])
     print("===================================")
 
 def format_page(results):
@@ -142,20 +134,94 @@ def display_pages(pages):
     user_choice = input("If you would like to select a result, enter with the format [Page Number].[Result Number]. If not, enter 'n': ")
 
     if user_choice == 'n':
-        return
+        return user_choice
     else:
         choice = user_choice.split(".")
         selected_page = pages[int(choice[0])]
         selected_result = selected_page[int(choice[1])]
 
-        if selected_result[1] == "Song":
-            select_song(selected_result)
-        elif selected_result[1] == "Playlist":
-            select_playlist(selected_result)
-        elif selected_result[1] == "Artist":
-            select_artist(selected_result)
+        return selected_result
 
-def search_sp(uid):
+def list_songs(songs):
+    if len(songs) == 0:
+        print("No songs to display.")
+        return None
+
+    song_counter = 0
+    for song in songs:
+        print("Result Number: " + str(song_counter) + ", Title: " + song[2] + ", Duration: " + str(song[3]) + ", ID: " + str(song[0]))
+        song_counter += 1
+
+    user_choice = input("If you would like to select a result, enter the result number: [Result Number]. If not, enter 'n': ")
+
+    if user_choice == 'n':
+        return user_choice
+    elif user_choice.isnumeric() and int(user_choice) >= 0 and int(user_choice) < len(songs):
+        selected_result = songs[int(user_choice)]
+        return selected_result
+    else:
+        print("Invalid search.")
+        return None
+
+def select_artist(artist):
+    # actions that occur when you select a playlist
+    print("===================================")
+    print("SELECTED ARTIST: " + artist[2])
+    print("===================================")
+
+    print("Artist ID: " + str(artist[0]))
+    print("Artist Name: " + artist[2])
+
+    get_songs = """
+                SELECT s.sid, "Song" as type, s.title, s.duration, NULL as sim_count
+                FROM songs s, perform p
+                WHERE p.aid = :cur_artist
+                and p.sid = s.sid
+                """
+    cur.execute(get_songs, {"cur_artist": artist[0]})
+    artist_songs = cur.fetchall()
+
+    selection = list_songs(artist_songs)
+    return selection
+
+def select_playlist(playlist):
+    # actions that occur when you select a playlist
+    print("===================================")
+    print("SELECTED PLAYLIST: " + playlist[2])
+    print("===================================")
+
+    print("Playlist ID: " + str(playlist[0]))
+    print("Playlist Title: " + playlist[2])
+
+    get_songs = """
+                SELECT s.sid, "Song" as type, s.title, s.duration, NULL as sim_count
+                FROM songs s, plinclude pi
+                WHERE pi.pid = :cur_py
+                and pi.sid = s.sid
+                ORDER BY pi.sorder ASC
+                """
+    cur.execute(get_songs, {"cur_py": playlist[0]})
+
+    py_songs = cur.fetchall()
+
+    selection = list_songs(py_songs)
+    return selection
+
+def process_selection(selection):
+    if selection[1] == "Song":
+        select_song(selection)
+    else:
+        if selection[1] == "Playlist":
+            choice = select_playlist(selection)
+        else: # selection[1] == "Artist":
+            choice = select_artist(selection)
+
+        if choice != 'n' or choice != None:
+            select_song(choice)
+        
+    return
+
+def search_sp():
     # allows the user to search for a song or playlist
     global connection, cur
     connection.row_factory = sqlite3.Row
@@ -186,13 +252,15 @@ def search_sp(uid):
     cur.execute(get_ps, {"usearch": keywords})
     ps_results = cur.fetchall()
     ps_pages = format_page(ps_results)
-    print(ps_pages)
-    display_pages(ps_pages)
 
-    home(uid)
+    if len(ps_pages) == 0:
+        return 'n'
 
+    selection = display_pages(ps_pages)
 
-def search_artist(uid):
+    return selection
+
+def search_artist():
     # allows the user to search for an artist
     global connection, cur
     print("===================================")
@@ -226,10 +294,14 @@ def search_artist(uid):
     as_pages = format_page(as_results)
 
     if len(as_pages) == 0:
-        home(uid)
+        return
 
-    display_pages(as_pages)
-    home(uid)
+    selection = display_pages(as_pages)
+
+    if selection != 'n':
+        process_selection(selection)
+
+    return
 
 def end_session(uid):
     # allows the user to end their session
@@ -249,6 +321,7 @@ def end_session(uid):
                    """
     cur.execute(update_session, {"userid": uid, "curtime": current_date})
     connection.commit()
+    return
 
 def home(uid):
     print("===================================")
@@ -265,17 +338,25 @@ def home(uid):
 
     if user_choice == "1":
         start_session(uid)
+        return True
     elif user_choice == "2":
-        search_sp(uid)
+        selection = search_sp()
+        if selection != 'n':
+            process_selection(selection)
+        return True
+
     elif user_choice == "3":
-        search_artist(uid)
+        search_artist()
+        return True
     elif user_choice == "4":
         end_session(uid)
+        return False
     elif user_choice == "5":
-        login(uid)
+        login()
+        return True
     else:
         print("Invalid input.")
-        home(uid)
+        return True
 
 def login():
     # login screen to retrieve account and detect if account is user, artist, or both
@@ -358,7 +439,10 @@ def main():
 
     # main program
     uid = login()
-    home(uid)
+
+    continue_session = True
+    while continue_session:
+        continue_session = home("uid")
 
     # close connection and finish program
     connection.commit()
