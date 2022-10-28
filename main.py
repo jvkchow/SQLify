@@ -442,7 +442,7 @@ def main():
 
     continue_session = True
     while continue_session:
-        continue_session = home("uid")
+        continue_session = home(uid)
 
     # close connection and finish program
     connection.commit()
