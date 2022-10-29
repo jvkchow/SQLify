@@ -47,9 +47,9 @@ def start_session(uid):
     print("SESSION {sessionno} STARTED".format(sessionno=sno))
     print("===================================")
 
-    home(uid)
-
     connection.commit()
+
+    return sno
 
 def similar_words(dbword, usearch):
     count = 0
@@ -82,12 +82,62 @@ def print_page(pages, page_no):
             print("Type: " + result[1] + ", Title: " + result[2] + ", Duration: " + str(result[3]) + ", ID: " + str(result[0]))
         counter += 1
     print("===================================")
+    return
 
 def listen(song, uid):
     # actions that occur when listening to a song
     print("===================================")
     print("LISTENING TO SONG...")
     print("===================================")
+
+    # check if session is opened and add to listen event (if not opened start a new session)
+    check_session = """
+                    SELECT *
+                    FROM sessions
+                    WHERE uid = :userid
+                    and end IS NULL;
+                    """
+    cur.execute(check_session, {"userid": uid})
+    session = cur.fetchone()
+
+    if session == None:
+        print("You are currently not in a session.")
+        print("Start a new session...")
+        sno = start_session(uid)
+    else:
+        sno = session[1]
+
+    # check if have listened to the song before in this session
+
+    check_listen = """
+                    SELECT cnt
+                    FROM listen
+                    WHERE uid = :userid
+                    and sno = :sesno
+                    and sid = :cur_song
+                   """
+    cur.execute(check_listen, {"userid": uid, "sesno": sno, "cur_song": song[0]})
+    listened = cur.fetchone()
+
+    if listened == None:
+        insert_listen = """
+                        INSERT INTO listen(uid, sno, sid, cnt)
+                        VALUES (:userid, :sesno, :cur_song, 1)
+                        """
+        cur.execute(insert_listen, {"userid": uid, "sesno": sno, "cur_song": song[0]})
+    else:
+        update_listen = """
+                        UPDATE listen
+                        SET cnt = cnt + 1
+                        WHERE uid = :userid
+                        and sno = :sesno
+                        and sid = :cur_song
+                        """
+        cur.execute(update_listen, {"userid": uid, "sesno": sno, "cur_song": song[0]})
+
+    connection.commit()
+    print("Listening complete.")
+    return
 
 def song_info(song):
     # actions to display extra song information
@@ -577,7 +627,7 @@ def main():
 
     continue_session = True
     while continue_session:
-        continue_session = home("u04")
+        continue_session = home("u03")
 
     # close connection and finish program
     connection.commit()
