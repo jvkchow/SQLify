@@ -568,10 +568,12 @@ def login():
             new_uid = input("\nThis id is already being used, please enter a unique id: ")
         name = input("\nPlease enter your name: ")
         password = input("\nPlease enter a new password: ")
+        users.append(new_uid)
         cur.execute("INSERT INTO users VALUES (:uid, :name, :pwd)", {"uid": new_uid, "name": name, "pwd": password})
         connection.commit()
+        return new_uid
 
-    
+
     # logging in
     if answer.lower() == 'l':
         id = input("\nPlease enter your id: ")
@@ -580,7 +582,7 @@ def login():
             password = input("\nPlease enter your password: ")
             cur.execute("Select pwd from users where uid = :id;", {"id": id})
             connection.commit()
-            pwd = cur.fetchone()
+            pwd = cur.fetchone()[0]
             while password != pwd:
                 password = input("\nIncorrect password. Please try again.")
             
@@ -588,7 +590,7 @@ def login():
             password = input("\nPlease enter your password: ")
             cur.execute("Select pwd from artists where aid = :id;", {"id": id})
             connection.commit()
-            pwd = cur.fetchone()
+            pwd = cur.fetchone()[0]
             while password != pwd:
                 password = input("\nIncorrect password. Please try again.")
             
@@ -600,16 +602,16 @@ def login():
                 password = input("\nPlease enter your password: ")
                 cur.execute("Select pwd from users where uid = :id;", {"id": id})
                 connection.commit()
-                pwd = cur.fetchone()
+                pwd = cur.fetchone()[0]
                 while password != pwd:
-                    password = input("\nIncorrect password. Please try again.")
+                    password = input("\nIncorrect password. Please try again: ")
             elif log_choice.lower() == 'a':
                 password = input("\nPlease enter your password: ")
                 cur.execute("Select pwd from artists where aid = :id;", {"id": id})
                 connection.commit()
-                pwd = cur.fetchone()
+                pwd = cur.fetchone()[0]
                 while password != pwd:
-                    password = input("\nIncorrect password. Please try again.")
+                    password = input("\nIncorrect password. Please try again: ")
                     
         elif id not in artists and id not in users: 
             print("\nYou have to make a new user account")
