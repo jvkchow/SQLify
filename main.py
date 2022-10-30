@@ -507,9 +507,9 @@ def end_session(uid):
     connection.commit()
     return
 
-def home(uid):
+def user_home(uid):
     print("===================================")
-    print("Welcome to the home screen!")
+    print("Welcome to the user home screen!")
     print("""
             Enter 1 to start a session
             Enter 2 to search for songs and playlists
@@ -537,11 +537,150 @@ def home(uid):
         end_session(uid)
         return False
     elif user_choice == "5":
-        login()
+        print("Logging out...")
         return True
     else:
         print("Invalid input.")
         return True
+
+def upload_song(aid):
+    # actions to upload a song for an artist
+
+    print("===================================")
+    print("Uploading song...")
+    print("===================================")
+
+    title = input("Please enter the title of your song: ")
+    duration = input("Please enter your song duration: ")
+    artist_count = input("Please enter a number to indicate how many artists worked on this song in total: ")
+
+    artists = []
+    artists.append(aid)
+
+    if int(artist_count) > 1:
+        count = 1
+        while count < int(artist_count):
+            additional_artist = input("Please enter the artist id of an additional artist: ")
+            if additional_artist not in artists:
+                artists.append(additional_artist)
+                count += 1
+            else:
+                print("You already said this artist.")
+
+    check_song = """
+                    SELECT *
+                    FROM artists a, songs s, perform p
+                    WHERE a.aid = :cur_artist
+                    and s.title = :chosen_title
+                    and s.duration = :chosen_duration
+                    and p.sid = s.sid
+                    and p.aid = :cur_artist;
+                 """
+
+    cur.execute(check_song, {"cur_artist": aid, "chosen_title": title, "chosen_duration": duration})
+    songs = cur.fetchall()
+
+    if len(songs) == 0:
+
+        cur.execute("SELECT sid FROM songs ORDER BY sid DESC;")
+        sids = cur.fetchall()
+        old_sid = sids[0][0]
+        new_sid = old_sid + 1
+
+        add_song = """
+                    INSERT INTO songs(sid, title, duration)
+                    VALUES (:song_id, :song_title, :song_duration);
+                   """
+        cur.execute(add_song, {"song_id": new_sid, "song_title": title, "song_duration": duration})
+
+        for artist in artists:
+            add_artist_song = """
+                                INSERT INTO perform(aid, sid)
+                                VALUES (:cur_artist, :new_sid);
+                            """
+            cur.execute(add_artist_song, {"cur_artist": artist, "new_sid": new_sid})
+        connection.commit()
+        print("Song successfully uploaded.")
+    else:
+        print("You have already uploaded this song.")
+
+    return
+
+def find_for_artist(aid):
+    # actions to find the top 3 fans and playlists of an artist
+    print("===================================")
+    print("TOP 3 FANS:")
+    print("===================================")
+
+    find_fans = """
+                    SELECT u.uid, u.name, sum(l.cnt*s.duration) as listens
+                    FROM users u, listen l, perform p, songs s
+                    WHERE u.uid = l.uid
+                    and l.sid = p.sid
+                    and l.sid = s.sid
+                    and p.aid = :cur_artist
+                    GROUP BY u.uid
+                    ORDER BY listens DESC
+                    LIMIT 3;
+                """
+    cur.execute(find_fans, {"cur_artist": aid})
+    fans = cur.fetchall()
+
+    if len(fans) == 0:
+        print("You have no fans.")
+    else:
+        for fan in fans:
+            print("User ID: " + fan[0], ", Name: " + fan[1])
+    print("===================================")
+    print("TOP 3 PLAYLISTS:")
+    print("===================================")
+
+    find_playlists = """
+                        SELECT py.pid, py.title, sum(s.sid) as artist_songs
+                        FROM playlists py, songs s, perform p, plinclude pi
+                        WHERE py.pid = pi.pid
+                        and s.sid = pi.sid
+                        and s.sid = p.sid
+                        and p.aid = :cur_artist
+                        GROUP BY py.pid
+                        ORDER BY artist_songs DESC
+                        LIMIT 3;
+                     """
+    cur.execute(find_playlists, {"cur_artist": aid})
+    playlists = cur.fetchall()
+
+    if len(playlists) == 0:
+        print("Your songs are not in any playlists.")
+    else:
+        for playlist in playlists:
+            print("Playlist ID: " + str(playlist[0]) + ", Playlist Title: " + playlist[1])
+
+    return
+
+def artist_home(aid):
+    print("===================================")
+    print("Welcome to the artist home screen!")
+    print("""
+            Enter 1 to add a song
+            Enter 2 to find top fans and playlists
+            Enter 3 to log out
+          """)
+    print("===================================")
+    artist_choice = input("Please enter your choice: ")
+
+    if artist_choice == "1":
+        upload_song(aid)
+        return True
+    elif artist_choice == "2":
+        find_for_artist(aid)
+        return True
+    elif artist_choice == "3":
+        print("Logging out...")
+        return False
+    else:
+        print("Invalid input.")
+        return True
+
 
 def login():
     global connection, cur
@@ -639,11 +778,16 @@ def main():
     connection.create_function("sim_words", 2, similar_words)
 
     # main program
-    #uid = login()
+    login_info = login()
 
-    continue_session = True
-    while continue_session:
-        continue_session = home("u03")
+    if login_info[1] == "user":
+        continue_user_session = True
+        while continue_user_session:
+            continue_user_session = user_home(login_info[0])
+    else:
+        continue_artist_session = True
+        while continue_artist_session:
+            continue_artist_session = artist_home(login_info[0])
 
     # close connection and finish program
     connection.commit()
