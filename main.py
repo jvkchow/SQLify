@@ -277,9 +277,15 @@ def home(uid):
         print("Invalid input.")
         home(uid)
 
+def exits(input):
+    if input.lower() == 'exit':
+        exit()
+
 def login():
     global connection, cur
     # login screen to retrieve account and detect if account is user, artist, or both
+
+    # welcome screen
     print("\n======================================")
     print("Welcome to UAtify!".center(35))
     print("Canada's top music streaming platform".center(35))
@@ -287,109 +293,140 @@ def login():
     print("======================================")
     print("\nEnter 'exit' at any time to logout")
 
+    # getting all user ids
     cur.execute("Select uid from users;")
     connection.commit()
     old_users = cur.fetchall()
+    # fetchall() returns items in a tuple, so each item will be
+    # equal to (uid,)
+    # this loop removes the comma and populates first_users with the ids
     first_users = [user[0] for user in old_users]
+    # this loop returns the lowercase version of all ids to help
+    # with case insensitivity
     users = [str(id).lower() for id in first_users]
 
+    # getting all artist ids
     cur.execute("Select aid From artists;")
     connection.commit()
     old_artists = cur.fetchall()
+    # fetchall() returns items in a tuple, so each item will be
+    # equal to (aid,)
+    # this loop removes the comma and populates first_artists with the ids
     first_artists = [artist[0] for artist in old_artists]
+    # this loop returns the lowercase version of all ids to help
+    # with case insensitivity
     artists = [str(name).lower() for name in first_artists]
 
+    # asking user if they want to make an account or login
     answer = input("\nDo you want to make a new account (n) or login (l)? Enter n or l: ")
-    if answer == 'exit':
-        exit()
+    # exits() checks if user wants to exit code
+    # will be used any time user enters an input
+    exits(answer)
     while answer.lower() != "n" and answer.lower() != "l":
         answer = input("Do you want to make a new account (n) or login (l)? Enter n or l: ")
-        if answer == 'exit':
-            exit()
+        exits(answer)
 
     # adding new user
     if answer.lower() == 'n':
         new_uid = input("\nPlease enter a 4 character unique id: ")
-        if new_uid == 'exit':
-            exit()
+        exits(new_uid)
+        # while the entered id is not unique or is longer than 4 characters
         while new_uid.lower() in users or len(new_uid) > 4:
             new_uid = input("\nPlease enter a unique id that is not longer than 4 characters: ")
-            if new_uid == 'exit':
-                exit()
+            exits(new_uid)
         name = input("\nPlease enter your name: ")
+        exits(name)
         password = input("\nPlease enter a new password: ")
+        exits(password)
+        # adding user id to users list
         users.append(new_uid.lower())
+        # inserting information about new user into users table
         cur.execute("INSERT INTO users VALUES (:uid, :name, :pwd)", {"uid": new_uid, "name": name, "pwd": password})
         connection.commit()
+        # returning id and 'user' to help identify if person logging in is a user or artist
         return (new_uid.lower(), 'user')
 
 
     # logging in
     if answer.lower() == 'l':
         user_id = input("\nPlease enter your id: ")
-        if user_id == 'exit':
-            exit()
+        exits(user_id)
+        # lower() helps with matching with case insensitivity
         id = user_id.lower()
-
+        # if id is a user id and not an artist id
         if id in users and id not in artists:
             password = input("\nPlease enter your password: ")
+            exits(password)
+            # get password for person with selected id
             cur.execute("Select pwd from users where uid = :id;", {"id": id})
             connection.commit()
             pwd = cur.fetchone()[0]
             while password != pwd:
                 password = input("\nIncorrect password. Please try again: ")
+                exits(password)
             return (id, 'user')
-            
+        
+        # if id is not a user id and an artist id
         elif id in artists and id not in users:
             password = input("\nPlease enter your password: ")
+            exits(password)
             cur.execute("Select pwd from artists where aid = :id;", {"id": id})
             connection.commit()
             pwd = cur.fetchone()[0]
             while password != pwd:
                 password = input("\nIncorrect password. Please try again: ")
+                exits(password)
             return (id, 'artist')
-            
+        
+        # if id is both an artist id and a user id
         elif id in artists and id in users:
+            # ask person if they want to login as an artist or user
             log_choice = input("\nDo you want to login as a user or an artist? Please enter u or a: ")
+            exits(log_choice)
             while log_choice.lower() not in ['u', 'a']:
                 log_choice = input("\nDo you want to login as a user or an artist? Please enter u or a: ")
+                exits(log_choice)
+            # person logs in as a user
             if log_choice.lower() == 'u':
                 password = input("\nPlease enter your password: ")
+                exits(password)
                 cur.execute("Select pwd from users where uid = :id;", {"id": id})
                 connection.commit()
                 pwd = cur.fetchone()[0]
                 while password != pwd:
                     password = input("\nIncorrect password. Please try again: ")
+                    exits(password)
                 return (id, 'user')
+            # person logs in as an artist
             elif log_choice.lower() == 'a':
                 password = input("\nPlease enter your password: ")
+                exits(password)
                 cur.execute("Select pwd from artists where aid = :id;", {"id": id})
                 connection.commit()
                 pwd = cur.fetchone()[0]
                 while password != pwd:
                     password = input("\nIncorrect password. Please try again: ")
+                    exits(password)
                 return (id, 'artist')
-                    
+        
+        # if id belongs to someone not registered yet
         elif id not in artists and id not in users: 
             print("\nYou have to make a new user account")
+            # prompt them to make a new user account
             new_uid = input("\nPlease enter a 4 character unique id: ")
-            if new_uid == 'exit':
-                exit()
+            exits(new_uid)
             while new_uid.lower() in users or len(new_uid) > 4:
                 new_uid = input("\nPlease enter a unique id that is not longer than 4 characters: ")
-                if new_uid == 'exit':
-                    exit()
+                exits(new_uid)
             name = input("\nPlease enter your name: ")
+            exits(name)
             password = input("\nPlease enter a new password: ")
+            exits(password)
             users.append(new_uid.lower())
             cur.execute("INSERT INTO users VALUES (:uid, :name, :pwd)", {"uid": new_uid, "name": name, "pwd": password})
             connection.commit()
             return (new_uid.lower(), 'user')
         
-        return id
-
-       
-           
 
 def main():
     global connection, cur
