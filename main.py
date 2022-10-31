@@ -279,6 +279,7 @@ def home(uid):
 
 def exits(input):
     if input.lower() == 'exit':
+        print("Exiting the program...")
         exit()
 
 def login():
@@ -291,7 +292,7 @@ def login():
     print("Canada's top music streaming platform".center(35))
     print("Please login below".center(35))
     print("======================================")
-    print("\nEnter 'exit' at any time to logout")
+    print("\nEnter 'exit' at any time to exit the program")
 
     # getting all user ids
     cur.execute("Select uid from users;")
@@ -338,6 +339,7 @@ def login():
         exits(name)
         password = input("\nPlease enter a new password: ")
         exits(password)
+        print("\nThank you for registering!")
         # adding user id to users list
         users.append(new_uid.lower())
         # inserting information about new user into users table
@@ -427,7 +429,6 @@ def login():
             connection.commit()
             return (new_uid.lower(), 'user')
         
-
 def main():
     global connection, cur
 
