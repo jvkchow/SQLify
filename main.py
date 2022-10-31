@@ -945,16 +945,17 @@ def main():
     connection.create_function("sim_words", 2, similar_words)
 
     # main program
-    login_info = login()
+    while True:
+        login_info = login()
 
-    if login_info[1] == "user":
-        continue_user_session = True
-        while continue_user_session:
-            continue_user_session = user_home(login_info[0])
-    else:
-        continue_artist_session = True
-        while continue_artist_session:
-            continue_artist_session = artist_home(login_info[0])
+        if login_info[1] == "user":
+            continue_user_session = True
+            while continue_user_session:
+                continue_user_session = user_home(login_info[0])
+        else:
+            continue_artist_session = True
+            while continue_artist_session:
+                continue_artist_session = artist_home(login_info[0])
 
     # close connection and finish program
     connection.commit()
