@@ -833,7 +833,7 @@ def login():
     print("Canada's top music streaming platform".center(35))
     print("Please login below".center(35))
     print("======================================")
-    print("\nEnter 'exit' at any time to logout")
+    print("\nEnter 'exit' at any time to exit the program")
 
     # getting all user ids
     cur.execute("Select uid from users;")
@@ -861,8 +861,8 @@ def login():
 
     # asking user if they want to make an account or login
     answer = input("\nDo you want to make a new account (n) or login (l)? Enter n or l: ")
-    # exits() checks if user wants to exit code
-    # will be used any time user enters an input
+    # exits() checks if user wants to exit the program
+    # will be called any time user enters an input
     exits(answer)
     while answer.lower() != "n" and answer.lower() != "l":
         answer = input("Do you want to make a new account (n) or login (l)? Enter n or l: ")
