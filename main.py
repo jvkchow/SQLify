@@ -821,6 +821,7 @@ def artist_home(aid):
 
 def exits(input):
     if input.lower() == 'exit':
+        print("Exiting the program...")
         exit()
 
 def login():
@@ -880,6 +881,7 @@ def login():
         exits(name)
         password = input("\nPlease enter a new password: ")
         exits(password)
+        print("\nThank you for registering!")
         # adding user id to users list
         users.append(new_uid.lower())
         # inserting information about new user into users table
@@ -969,7 +971,6 @@ def login():
             connection.commit()
             return (new_uid.lower(), 'user')
         
-
 def main():
     global connection, cur
 
