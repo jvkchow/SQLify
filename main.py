@@ -618,7 +618,7 @@ def user_home(uid):
             Enter 2 to search for songs and playlists
             Enter 3 to search for artists
             Enter 4 to end the session
-            Enter 5 to logout
+            Enter 5 to log out
             Enter 6 to exit the program
         """)
     print("===================================")
@@ -639,10 +639,10 @@ def user_home(uid):
         return True
     elif user_choice == "4":
         end_session(uid)
-        return False
+        return True
     elif user_choice == "5":
         user_logout(uid)
-        return True
+        return False
     elif user_choice == "6":
         user_exit(uid)
     else:
