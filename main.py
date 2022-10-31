@@ -17,12 +17,43 @@ def connect(path):
     connection.commit()
     return
 
+def exit_program():
+    # exits the program for an artist
+    print("Exiting the program...")
+    sys.exit()
+
+def check_open_session(uid):
+    # check if there are any open sessions and ends them if there are
+    cur.execute("SELECT * FROM sessions WHERE uid=:userid and end IS NULL", {"userid": uid})
+    open_session = cur.fetchone()
+    if open_session != None:
+        end_session(uid)
+    return
+
+def user_exit(uid):
+    # exits the program for a user
+    check_open_session(uid)
+    exit_program()
+
+def user_logout(uid):
+    # logs the user out
+    check_open_session(uid)
+    print("Logging out...")
+    return
+
 def start_session(uid):
     # starts a session for the user
 
     global connection, cur
 
     current_date = time.strftime("%Y-%m-%d")
+
+    # check if user is not in another session
+    cur.execute("SELECT * FROM sessions WHERE uid=:userid and end IS NULL", {"userid": uid})
+    possible_ses = cur.fetchone()
+    if possible_ses != None:
+        print("You are already in a session.")
+        return
 
     # check if this session is the first one added
     cur.execute("SELECT COUNT(*) FROM sessions;")
@@ -36,6 +67,7 @@ def start_session(uid):
         largest_sno = snos[len(snos)-1][0]
         sno = largest_sno + 1
 
+    # adds a new session
     new_session = """
                     INSERT INTO sessions(uid, sno, start, end)
                     VALUES (:userid, :sesno, :stime, NULL);
@@ -52,6 +84,8 @@ def start_session(uid):
     return sno
 
 def similar_words(dbword, usearch):
+    # gets the number of similar words between dbword and usearch and returns the result
+
     count = 0
     counted_words = []
 
@@ -66,6 +100,8 @@ def similar_words(dbword, usearch):
     return count
 
 def print_page(pages, page_no):
+    # prints a result page
+
     page = pages[page_no]
 
     print("===================================")
@@ -86,11 +122,12 @@ def print_page(pages, page_no):
 
 def listen(song, uid):
     # actions that occur when listening to a song
+
     print("===================================")
     print("LISTENING TO SONG...")
     print("===================================")
 
-    # check if session is opened and add to listen event (if not opened start a new session)
+    # checks if session is opened
     check_session = """
                     SELECT *
                     FROM sessions
@@ -100,6 +137,7 @@ def listen(song, uid):
     cur.execute(check_session, {"userid": uid})
     session = cur.fetchone()
 
+    # if a session is not opened, create a new one
     if session == None:
         print("You are currently not in a session.")
         print("Start a new session...")
@@ -107,8 +145,7 @@ def listen(song, uid):
     else:
         sno = session[1]
 
-    # check if have listened to the song before in this session
-
+    # check if user has listened to the song before in this session
     check_listen = """
                     SELECT cnt
                     FROM listen
@@ -120,12 +157,14 @@ def listen(song, uid):
     listened = cur.fetchone()
 
     if listened == None:
+        # if they have not listened to the song yet, insert a new listen entry in the listen table
         insert_listen = """
                         INSERT INTO listen(uid, sno, sid, cnt)
                         VALUES (:userid, :sesno, :cur_song, 1)
                         """
         cur.execute(insert_listen, {"userid": uid, "sesno": sno, "cur_song": song[0]})
     else:
+        # if they have listened to the song already, update the old listen count value
         update_listen = """
                         UPDATE listen
                         SET cnt = cnt + 1
@@ -140,7 +179,8 @@ def listen(song, uid):
     return
 
 def song_info(song):
-    # actions to display extra song information
+    # displays a song's title, duration, ID, artists that performed it, and playlists it's in
+
     print("===================================")
     print("SONG INFO")
     print("===================================")
@@ -162,6 +202,7 @@ def song_info(song):
     for artist in artists:
         print(artist[0])
 
+    # gets the playlists the song is in
     get_playlists = """
                     SELECT py.title
                     FROM playlists py, plinclude pi
@@ -181,6 +222,9 @@ def song_info(song):
     return
     
 def add_song(pid, sid):
+    # adds a song to a playlist
+
+    # get the given playlist to find how many songs have already been added to it
     retrieve_playlist = """
                         SELECT * 
                         FROM plinclude pi
@@ -196,6 +240,7 @@ def add_song(pid, sid):
     else:
         new_sorder = 0
 
+    # add the song into the playlist
     add_song = """
                 INSERT INTO plinclude(pid, sid, sorder)
                 VALUES (:id, :song, :order);
@@ -214,13 +259,24 @@ def playlist_add(song, uid):
     print(""" 
             Enter 'a' if you would like to add this song to an existing playlist
             Enter 'n' if you would like to create a new playlist to add this song to
+            Enter 'e' if you would like to exit the program
             """)
 
     choice = input("Please enter your choice: ")
 
-    if choice == 'a':
+    if choice == 'e':
+        user_exit(uid)
+
+    elif choice == 'a':
         id = input("Please enter the unique playlist id: ")
-        add_song(int(id), song[0])
+
+        # check to see if the playlist exists
+        cur.execute("SELECT * FROM playlists WHERE pid = :input_id", {"input_id": id})
+        possible_py = cur.fetchone()
+        if possible_py == None:
+            print("This playlist does not exist. Adding to playlist process terminated.")
+        else:
+            add_song(int(id), song[0])
 
     elif choice == 'n':
         name = input("Please enter the title you want the new playlist to have: ")
@@ -261,6 +317,7 @@ def select_song(song, uid):
             Enter 1 to listen to the song
             Enter 2 to see more information about the song
             Enter 3 to add this song to a playlist
+            Enter 4 to exit the program
         """)
     print("===================================")
 
@@ -272,15 +329,20 @@ def select_song(song, uid):
         song_info(song)
     elif action == "3":
         playlist_add(song, uid)
+    elif action == "4":
+        user_exit(uid)
     else:
         print("Invalid input.")
     return
 
 
 def format_page(results):
-    # puts results into pages
+    # puts results into a page formatted list and returns the list
+    
     pages = []
     counter = 0
+
+    # check if there are results matching the search
     if len(results) <= 0:
         print("\nThere are no results that match your search.")
         return pages
@@ -302,11 +364,19 @@ def format_page(results):
             pages.append(page)
     return pages
 
-def display_pages(pages):
+def display_pages(pages, uid):
+    # provides the user options on whether to go to the next page and to select a result
+    # returns the user's selection
+
+    exit_choice = input("If you would like to exit the program, enter 'e'. Otherwise, enter any input: ")
+    if exit_choice == 'e':
+        user_exit(uid)
+    print("Displaying pages...")
+
     # print first results
     current_page = 0
     print_page(pages, current_page)
-    
+
     # print next pages
     while current_page != len(pages) - 1:
         next = input("If you would like to see the next page, enter 'y'. If not, enter 'n': ")
@@ -321,16 +391,28 @@ def display_pages(pages):
 
     user_choice = input("If you would like to select a result, enter with the format [Page Number].[Result Number]. If not, enter 'n': ")
 
+    # retrieves user's selection
     if user_choice == 'n':
         return user_choice
+    elif "." not in user_choice:
+        print("Invalid format. Selection process terminated.")
+        return None
     else:
         choice = user_choice.split(".")
+
+        if (not choice[0].isnumeric()) or (not choice[1].isnumeric()):
+            print("Invalid format. Selection process terminated.")
+            return None
+
         selected_page = pages[int(choice[0])]
         selected_result = selected_page[int(choice[1])]
 
         return selected_result
 
 def list_songs(songs):
+    # lists songs given by the songs parameter in a readable format
+
+    # checks if there are songs in the playlist
     if len(songs) == 0:
         print("No songs to display.")
         return None
@@ -342,9 +424,10 @@ def list_songs(songs):
 
     user_choice = input("If you would like to select a result, enter the result number: [Result Number]. If not, enter 'n': ")
 
+    # retrieve user's selection
     if user_choice == 'n':
         return user_choice
-    elif user_choice.isnumeric() and int(user_choice) >= 0 and int(user_choice) < len(songs):
+    elif user_choice.isdigit() and int(user_choice) >= 0 and int(user_choice) < len(songs):
         selected_result = songs[int(user_choice)]
         return selected_result
     else:
@@ -352,7 +435,8 @@ def list_songs(songs):
         return None
 
 def select_artist(artist):
-    # actions that occur when you select a playlist
+    # displays an artist's ID, name, and songs
+
     print("===================================")
     print("SELECTED ARTIST: " + artist[2])
     print("===================================")
@@ -373,7 +457,7 @@ def select_artist(artist):
     return selection
 
 def select_playlist(playlist):
-    # actions that occur when you select a playlist
+    # displays a playlist's ID, title, and songs that are in it
     print("===================================")
     print("SELECTED PLAYLIST: " + playlist[2])
     print("===================================")
@@ -396,19 +480,22 @@ def select_playlist(playlist):
     return selection
 
 def process_selection(selection, uid):
+    # performs an action depending on whether a user has selected a song, playlist, or an artist
+
     if selection[1] == "Song":
         select_song(selection, uid)
     else:
         if selection[1] == "Playlist":
             choice = select_playlist(selection)
-        else: # selection[1] == "Artist":
+        else: # selection == "Artist"
             choice = select_artist(selection)
         if choice != 'n' and choice != None:
+            # if the user wants to select a song in a playlist or a song that an artist has performed
             select_song(choice, uid)
         
     return
 
-def search_sp():
+def search_sp(uid):
     # allows the user to search for a song or playlist
     global connection, cur
     connection.row_factory = sqlite3.Row
@@ -418,6 +505,7 @@ def search_sp():
 
     keywords = input("Please enter your search: ")
 
+    # gets song and playlist information if some of the song/playlist's title matches some of the user's search
     get_ps = """
                 WITH ps_results(id, type, title, duration, sim_count) as (
                 SELECT sid, 'Song' as type, s.title, duration, sim_words(UPPER(title), UPPER(:usearch)) as sim_count
@@ -440,14 +528,16 @@ def search_sp():
     ps_results = cur.fetchall()
     ps_pages = format_page(ps_results)
 
+    # check if there are results
     if len(ps_pages) == 0:
-        return 'n'
+        print("No song or playlist matches your search.")
+        return None
 
-    selection = display_pages(ps_pages)
+    selection = display_pages(ps_pages, uid)
 
     return selection
 
-def search_artist():
+def search_artist(uid):
     # allows the user to search for an artist
     global connection, cur
     print("===================================")
@@ -455,6 +545,8 @@ def search_artist():
     print("===================================")
 
     keywords = input("Please enter your search: ")
+
+    # gets artist information if some of their name or the song's title matches some of the user's search
 
     get_as = """
                 WITH as_results(aid, type, name, nationality, song_count, sim_count) as (
@@ -480,18 +572,28 @@ def search_artist():
     as_results = cur.fetchall()
     as_pages = format_page(as_results)
 
+    # check if there are results
     if len(as_pages) == 0:
-        return 'n'
+        print("No artist matches your search.")
+        return None
 
-    selection = display_pages(as_pages)
+    selection = display_pages(as_pages, uid)
 
     return selection
 
 def end_session(uid):
-    # allows the user to end their session
+    # ends a user's session
+
     global connection, cur
 
     current_date = time.strftime("%Y-%m-%d")
+
+    # check if there is an open session
+    cur.execute("SELECT * FROM sessions WHERE uid=:userid and end IS NULL", {"userid": uid})
+    open_session = cur.fetchone()
+    if open_session == None:
+        print("You are not in any session.")
+        return
 
     print("===================================")
     print("SESSION ENDED")
@@ -508,6 +610,7 @@ def end_session(uid):
     return
 
 def user_home(uid):
+    # home screen for the user to select an action
     print("===================================")
     print("Welcome to the user home screen!")
     print("""
@@ -516,6 +619,7 @@ def user_home(uid):
             Enter 3 to search for artists
             Enter 4 to end the session
             Enter 5 to logout
+            Enter 6 to exit the program
         """)
     print("===================================")
     user_choice = input("Please enter your choice: ")
@@ -524,12 +628,12 @@ def user_home(uid):
         start_session(uid)
         return True
     elif user_choice == "2":
-        selection = search_sp()
+        selection = search_sp(uid)
         if selection != 'n' and selection != None:
             process_selection(selection, uid)
         return True
     elif user_choice == "3":
-        selection = search_artist()
+        selection = search_artist(uid)
         if selection != 'n' and selection != None:
             process_selection(selection, uid)
         return True
@@ -537,14 +641,16 @@ def user_home(uid):
         end_session(uid)
         return False
     elif user_choice == "5":
-        print("Logging out...")
+        user_logout(uid)
         return True
+    elif user_choice == "6":
+        user_exit(uid)
     else:
         print("Invalid input.")
         return True
 
 def upload_song(aid):
-    # actions to upload a song for an artist
+    # uploads a song for an artist
 
     print("===================================")
     print("Uploading song...")
@@ -552,35 +658,59 @@ def upload_song(aid):
 
     title = input("Please enter the title of your song: ")
     duration = input("Please enter your song duration: ")
+
+    # checks if the user entered the proper data for duration
+    if not duration.isdigit():
+        print("Your song duration must be a positive integer.\nUploading process terminated.")
+        return
+
     artist_count = input("Please enter a number to indicate how many artists worked on this song in total: ")
+
+    # checks if the user entered the proper data for artist count
+    if not artist_count.isdigit():
+        print("The amount of artists that worked on this song must be a positive integer.\nUploading process terminated.")
+        return
 
     artists = []
     artists.append(aid)
 
+    # if there is more than one artist, get the artist id's of the other ones
     if int(artist_count) > 1:
         count = 1
         while count < int(artist_count):
             additional_artist = input("Please enter the artist id of an additional artist: ")
-            if additional_artist not in artists:
+
+            # check if artist id exists
+            cur.execute("SELECT * FROM artists WHERE aid = :input_id", {"input_id": additional_artist})
+            possible_artist = cur.fetchone()
+            if possible_artist == None:
+                print("This artist is not registered in the system.")
+            elif additional_artist not in artists:
                 artists.append(additional_artist)
                 count += 1
             else:
                 print("You already said this artist.")
 
+    # check to see if the song has not already been uploaded
     check_song = """
+                    WITH matching_song(sid) as (
+                    SELECT sid
+                    FROM songs
+                    WHERE title = :chosen_title
+                    and duration = :chosen_duration
+                    )
                     SELECT *
-                    FROM artists a, songs s, perform p
+                    FROM artists a, matching_song m, perform p
                     WHERE a.aid = :cur_artist
-                    and s.title = :chosen_title
-                    and s.duration = :chosen_duration
-                    and p.sid = s.sid
+                    and p.sid = m.sid
                     and p.aid = :cur_artist;
                  """
 
-    cur.execute(check_song, {"cur_artist": aid, "chosen_title": title, "chosen_duration": duration})
-    songs = cur.fetchall()
+    cur.execute(check_song, {"cur_artist": aid, "chosen_title": title, "chosen_duration": int(duration)})
+    songs = cur.fetchone()
 
-    if len(songs) == 0:
+    # adds the song to the database
+    if songs == None:
 
         cur.execute("SELECT sid FROM songs ORDER BY sid DESC;")
         sids = cur.fetchall()
@@ -607,11 +737,12 @@ def upload_song(aid):
     return
 
 def find_for_artist(aid):
-    # actions to find the top 3 fans and playlists of an artist
+    # find sthe top 3 fans and playlists of an artist
     print("===================================")
     print("TOP 3 FANS:")
     print("===================================")
 
+    # finds the top 3 fans
     find_fans = """
                     SELECT u.uid, u.name, sum(l.cnt*s.duration) as listens
                     FROM users u, listen l, perform p, songs s
@@ -631,10 +762,12 @@ def find_for_artist(aid):
     else:
         for fan in fans:
             print("User ID: " + fan[0], ", Name: " + fan[1])
+
     print("===================================")
     print("TOP 3 PLAYLISTS:")
     print("===================================")
 
+    # finds the top 3 playlists
     find_playlists = """
                         SELECT py.pid, py.title, sum(s.sid) as artist_songs
                         FROM playlists py, songs s, perform p, plinclude pi
@@ -658,12 +791,14 @@ def find_for_artist(aid):
     return
 
 def artist_home(aid):
+    # artist home screen the artist to select an action
     print("===================================")
     print("Welcome to the artist home screen!")
     print("""
             Enter 1 to add a song
             Enter 2 to find top fans and playlists
             Enter 3 to log out
+            Enter 4 to exit the program
           """)
     print("===================================")
     artist_choice = input("Please enter your choice: ")
@@ -677,6 +812,8 @@ def artist_home(aid):
     elif artist_choice == "3":
         print("Logging out...")
         return False
+    elif artist_choice == "4":
+        exit_program()
     else:
         print("Invalid input.")
         return True
