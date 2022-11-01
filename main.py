@@ -238,7 +238,7 @@ def add_song(pid, sid):
         old_sorder = int(playlist[0][2])
         new_sorder = old_sorder + 1
     else:
-        new_sorder = 0
+        new_sorder = 1
 
     # add the song into the playlist
     add_song = """
@@ -271,10 +271,10 @@ def playlist_add(song, uid):
         id = input("Please enter the unique playlist id: ")
 
         # check to see if the playlist exists
-        cur.execute("SELECT * FROM playlists WHERE pid = :input_id", {"input_id": id})
+        cur.execute("SELECT * FROM playlists WHERE pid = :input_id and uid = :user_id", {"input_id": id, "user_id": uid})
         possible_py = cur.fetchone()
         if possible_py == None:
-            print("This playlist does not exist. Adding to playlist process terminated.")
+            print("You do not have this playlist. Adding to playlist process terminated.")
         else:
             add_song(int(id), song[0])
 
@@ -660,14 +660,14 @@ def upload_song(aid):
     duration = input("Please enter your song duration: ")
 
     # checks if the user entered the proper data for duration
-    if not duration.isdigit():
+    if (not duration.isdigit()) and int(duration) <= 0:
         print("Your song duration must be a positive integer.\nUploading process terminated.")
         return
 
     artist_count = input("Please enter a number to indicate how many artists worked on this song in total: ")
 
     # checks if the user entered the proper data for artist count
-    if not artist_count.isdigit():
+    if (not artist_count.isdigit()) and int(artist_count) <= 0:
         print("The amount of artists that worked on this song must be a positive integer.\nUploading process terminated.")
         return
 
