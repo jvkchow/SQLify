@@ -737,7 +737,7 @@ def upload_song(aid):
     return
 
 def find_for_artist(aid):
-    # find sthe top 3 fans and playlists of an artist
+    # finds the top 3 fans and playlists of an artist
     print("===================================")
     print("TOP 3 FANS:")
     print("===================================")
